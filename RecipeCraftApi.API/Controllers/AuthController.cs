@@ -16,6 +16,9 @@ namespace RecipeCraftApi.API.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] UserRegisterDto dto)
         {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             var user = await _userService.Register(dto);
             return Ok(user);
         }

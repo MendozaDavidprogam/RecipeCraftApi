@@ -6,52 +6,62 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 
 namespace RecipeCraftApi.API.Middlewares
 {
-    public class JwtMiddleware
+public class JwtMiddleware
+{
+private readonly RequestDelegate _next;
+private readonly IConfiguration _config;
+private readonly ILogger<JwtMiddleware> _logger;
+
+    public JwtMiddleware(RequestDelegate next, IConfiguration config, ILogger<JwtMiddleware> logger)
     {
-        private readonly RequestDelegate _next;
-        private readonly IConfiguration _config;
+        _next = next;
+        _config = config;
+        _logger = logger;
+    }
 
-        public JwtMiddleware(RequestDelegate next, IConfiguration config)
+    public async Task Invoke(HttpContext context)
+    {
+        var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
         {
-            _next = next;
-            _config = config;
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+            AttachUserToContext(context, token);
         }
 
-        public async Task Invoke(HttpContext context)
-        {
-            var token = context.Request.Headers["Authorization"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(token))
-                AttachUserToContext(context, token);
+        await _next(context);
+    }
 
-            await _next(context);
-        }
-
-        private void AttachUserToContext(HttpContext context, string token)
+    private void AttachUserToContext(HttpContext context, string token)
+    {
+        try
         {
-            try
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(_config["JWT_SECRET"]);
+            tokenHandler.ValidateToken(token, new TokenValidationParameters
             {
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var key = Encoding.ASCII.GetBytes(_config["JWT_SECRET"]);
-                tokenHandler.ValidateToken(token, new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    ClockSkew = System.TimeSpan.Zero
-                }, out SecurityToken validatedToken);
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ClockSkew = System.TimeSpan.Zero
+            }, out SecurityToken validatedToken);
 
-                var jwtToken = (JwtSecurityToken)validatedToken;
-                var userId = int.Parse(jwtToken.Claims.First(x => x.Type == ClaimTypes.NameIdentifier).Value);
-                var role = jwtToken.Claims.First(x => x.Type == ClaimTypes.Role).Value;
+            var jwtToken = (JwtSecurityToken)validatedToken;
+            var userId = int.Parse(jwtToken.Claims.First(x => x.Type == ClaimTypes.NameIdentifier).Value);
+            var role = jwtToken.Claims.First(x => x.Type == ClaimTypes.Role).Value;
 
-                context.Items["UserId"] = userId;
-                context.Items["UserRole"] = role;
-            }
-            catch { }
+            context.Items["UserId"] = userId;
+            context.Items["UserRole"] = role;
+        }
+        catch (System.Exception ex)
+        {
+            _logger.LogWarning("JWT validation failed: {Message}", ex.Message);
         }
     }
+}
+
 }
