@@ -36,11 +36,17 @@ $"Password={builder.Configuration["DB_PASSWORD"]}"
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<IIngredientTypeRepository, IngredientTypeRepository>();
+builder.Services.AddScoped<IIngredientRepository, IngredientRepository>();
+builder.Services.AddScoped<IngredientTypeService>();
+builder.Services.AddScoped<IngredientService>();
 
 builder.Services.AddControllers()
 .AddFluentValidation(fv => fv.AutomaticValidationEnabled = true);
 builder.Services.AddScoped<IValidator<UserRegisterDto>, UserRegisterValidator>();
 builder.Services.AddScoped<IValidator<UserUpdateDto>, UserUpdateValidator>();
+builder.Services.AddScoped<IValidator<IngredientTypeDto>, IngredientTypeValidator>();
+builder.Services.AddScoped<IValidator<IngredientDto>, IngredientValidator>();
 
 var key = Encoding.ASCII.GetBytes(builder.Configuration["JWT_SECRET"]);
 builder.Services.AddAuthentication(options =>
